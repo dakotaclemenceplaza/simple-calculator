@@ -30,17 +30,18 @@ eval (Mul x y) = eval x * eval y
 eval (Div x y) = eval x `div` eval y
 eval (I x) = x
 
--- add negative numbers
 parse :: String -> Either String Expr
-parse input = go (filter isSpace input) Nothing
+parse input = go (filter (not . isSpace) input) Nothing
   where go "" Nothing = Left "Empty input"
         go "" (Just n) = Right n
-        go ('+':xs) (Just num) = fmap (Add num) $ go xs Nothing
-        go ('-':xs) (Just num) = case go xs Nothing of
-                                   Right (Add x y) -> Right (Add (Sub num x) y)
-                                   Right (Sub x y) -> Right (Sub (Sub num x) y) -- minus is not commutative
-                                   Right expr -> Right (Sub num expr)
-                                   left -> left
+        go ('+':xs) (Just num) = let (n, rest) = takeNumber xs
+                                 in fmap (Add num) $ go rest (Just $ I (read n))   -- read could fail
+        go ('-':xs) (Just num) = let (n, rest) = takeNumber xs
+                                 in case go rest (Just $ I (read n)) of
+                                      Right (Add x y) -> Right (Add (Sub num x) y)
+                                      Right (Sub x y) -> Right (Sub (Sub num x) y) -- minus is not commutative
+                                      Right expr -> Right (Sub num expr)
+                                      left -> left
         go ('*':xs) (Just num) = let (y, rest) = takeNumber xs
                                  in go rest (Just $ Mul num (I $ read y))
         go ('/':xs) (Just num) = let (y, rest) = takeNumber xs
@@ -48,5 +49,6 @@ parse input = go (filter isSpace input) Nothing
         go s Nothing = let (n, rest) = takeNumber s
                        in go rest (Just $ I (read n))
         go _ _ = Left "Error: malformed expression"
+        takeNumber ('-':s) = let (n, rest) = break (not . digit) s in ('-':n, rest) -- negative number
         takeNumber s = break (not . digit) s
-          where digit c = c `elem` "0123456789"
+        digit c = c `elem` "0123456789"
