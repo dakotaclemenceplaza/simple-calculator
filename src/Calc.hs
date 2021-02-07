@@ -35,7 +35,9 @@ parse input | filter (not . isSpace) input == "" = Left "Empty input"
 parse input = case go (filter (not . isSpace) input) [] Nothing of
                 Nothing -> Left "Error: malformed expression"
                 Just v -> Right v
-  where go "" [m] Nothing = m
+  where -- string to parse -> list of prev exprs -> previous operation (constructor) -> resulting expression
+        go :: String -> [Maybe Expr] -> Maybe (Expr -> Expr -> Expr) -> Maybe Expr
+        go "" [m] Nothing = m
         go "" [n, m] (Just op) = op <$> m <*> n
         go "" _ _ = Nothing
         go ('+':xs) (n:m:nums) (Just op) = go xs ((op <$> m <*> n) : nums) (Just Add)
