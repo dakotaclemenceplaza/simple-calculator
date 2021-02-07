@@ -2,6 +2,8 @@ module Calc where
 
 import System.IO (hFlush, stdout)
 import Data.Char (isSpace)
+import Text.Read (readMaybe)
+import Data.Tuple (swap)
 
 calc = do
   putStr "> "
@@ -27,25 +29,32 @@ eval (Mul x y) = eval x * eval y
 eval (Div x y) = eval x `div` eval y
 eval (I x) = x
 
+-- Not the best handling of errors
 parse :: String -> Either String Expr
-parse input = go (filter (not . isSpace) input) Nothing
-  where go "" Nothing = Left "Empty input"
-        go "" (Just n) = Right n
-        go ('+':xs) (Just num) = let (n, rest) = takeNumber xs
-                                 in fmap (Add num) $ go rest (Just $ I (read n))   -- read could fail
-        go ('-':xs) (Just num) = let (n, rest) = takeNumber xs
-                                 in case go rest (Just $ I (read n)) of
-                                      Right (Add x y) -> Right (Add (Sub num x) y)
-                                      Right (Sub x y) -> Right (Sub (Sub num x) y) -- minus is not commutative
-                                      Right expr -> Right (Sub num expr)
-                                      left -> left
-        go ('*':xs) (Just num) = let (y, rest) = takeNumber xs
-                                 in go rest (Just $ Mul num (I $ read y))
-        go ('/':xs) (Just num) = let (y, rest) = takeNumber xs
-                                 in go rest (Just $ Div num (I $ read y))
-        go s Nothing = let (n, rest) = takeNumber s
-                       in go rest (Just $ I (read n))
-        go _ _ = Left "Error: malformed expression"
-        takeNumber ('-':s) = let (n, rest) = break (not . digit) s in ('-':n, rest) -- negative number
-        takeNumber s = break (not . digit) s
-        digit c = c `elem` "0123456789"
+parse input | filter (not . isSpace) input == "" = Left "Empty input"
+parse input = case go (filter (not . isSpace) input) [] Nothing of
+                Nothing -> Left "Error: malformed expression"
+                Just v -> Right v
+  where go "" [m] Nothing = m
+        go "" [n, m] (Just op) = op <$> m <*> n
+        go "" _ _ = Nothing
+        go ('+':xs) (n:m:nums) (Just op) = go xs ((op <$> m <*> n) : nums) (Just Add)
+        go ('+':xs) [m] Nothing = let (rest, y) = takeNumber xs
+                                  in go rest [fmap I y, m] (Just Add)
+        go ('-':xs) (n:m:nums) (Just op) = go xs ((op <$> m <*> n) : nums) (Just Sub)
+        go ('-':xs) [m] Nothing = let (rest, y) = takeNumber xs
+                                  in go rest [fmap I y, m] (Just Sub)
+        go ('*':xs) (m:nums) op = let (rest, y) = takeNumber xs
+                                  in go rest ((Mul <$> m <*> fmap I y) : nums) op
+        go ('/':xs) (m:nums) op = let (rest, y) = takeNumber xs
+                                  in go rest ((Div <$> m <*> fmap I y) : nums) op
+        go s nums op = let (rest, n) = takeNumber s
+                       in go rest ((fmap I n) : nums) op
+
+        -- take next number
+        takeNumber :: String -> (String, Maybe Integer)
+        takeNumber ('-':s) = fmap (fmap (read . ('-':))) $ helper s
+        takeNumber s = fmap (fmap read) $ helper s
+        helper (x:_) | x `notElem` "0123456789" = ("", Nothing)
+        helper s = fmap Just . swap . break (`notElem` "0123456789") $ s
+        
