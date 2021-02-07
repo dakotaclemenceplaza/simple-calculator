@@ -2,7 +2,7 @@ module Calc where
 
 import System.IO (hFlush, stdout)
 import Data.Char (isSpace)
-import Text.Read (readMaybe)
+-- import Text.Read (readMaybe)
 import Data.Tuple (swap)
 
 calc = do
@@ -12,23 +12,25 @@ calc = do
   case parse input of
     Left e -> print e >> calc
     Right expr -> do
-      print $ eval expr
+      putStrLn . cleanDouble . eval $ expr
       calc
   
-data Expr = I Integer
+data Expr = I Double
           | Add Expr Expr
           | Sub Expr Expr
           | Mul Expr Expr
           | Div Expr Expr
   deriving (Show)
 
-eval :: Expr -> Integer
+eval :: Expr -> Double
 eval (Add x y) = eval x + eval y
 eval (Sub x y) = eval x - eval y
 eval (Mul x y) = eval x * eval y
-eval (Div x y) = eval x `div` eval y
+eval (Div x y) = eval x / eval y
 eval (I x) = x
 
+cleanDouble = reverse . dropWhile (`elem` "0.") . reverse . show
+  
 -- Not the best handling of errors
 parse :: String -> Either String Expr
 parse input | filter (not . isSpace) input == "" = Left "Empty input"
@@ -54,7 +56,7 @@ parse input = case go (filter (not . isSpace) input) [] Nothing of
                        in go rest ((fmap I n) : nums) op
 
         -- take next number
-        takeNumber :: String -> (String, Maybe Integer)
+        takeNumber :: String -> (String, Maybe Double)
         takeNumber ('-':s) = fmap (fmap (read . ('-':))) $ helper s
         takeNumber s = fmap (fmap read) $ helper s
         helper (x:_) | x `notElem` "0123456789" = ("", Nothing)

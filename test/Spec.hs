@@ -27,13 +27,14 @@ main = hspec $ do
       test "7 + 3" `shouldBe` Right 10
       test "25 -3" `shouldBe` Right 22
 
+      test "1/5 + 1/5" `shouldBe` Right 0.4
       test "2+3-8+2" `shouldBe` Right (-1)
       test "22 - 3 - 7" `shouldBe` Right 12
       test "7 + 3*3-2" `shouldBe` Right 14
       test "25 -3 +3 -4 - - 1" `shouldBe` Right 22
       test "2-3 * 6 + 20" `shouldBe` Right 4
       test "200 - 31 - 10" `shouldBe` Right 159
-      test "7 * 3 + 1 / 2" `shouldBe` Right 21
+      test "7 * 3 + 1 / 2" `shouldBe` Right 21.5
       test "25*3 - 20 - 6 / 2 - 15 * 2" `shouldBe` Right 22
 
     it "shouldn't work" $ do
