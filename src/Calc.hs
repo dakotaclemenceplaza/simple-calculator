@@ -1,4 +1,4 @@
-module Calc where
+module Calc (calc, eval, parse) where
 
 import System.IO (hFlush, stdout)
 import Data.Char (isSpace)
@@ -54,48 +54,50 @@ addVar (variable, value) s = (variable, value) : del variable s
   where del _ [] = []
         del var ((v,_):xs) | v == var = xs
         del var (v:xs) = v : del var xs
-          
+
 -- Not the best handling of errors
 parse :: String -> Either String Input
 parse = parseInput . filter (not . isSpace)
   where parseInput s | null s = Left "Empty input"
-        parseInput s = helper1 $ break (=='=') s    -- see if it has an assignment operator
-        helper1 (var, expr) | not (null var) &&                                                -- assignment branch
+        parseInput s = helper $ break (=='=') s    -- see if it has an assignment operator
+        helper (var, expr) | not (null var) &&                                              -- assignment branch
                              all (`elem` ['a'..'z']) var &&
-                             not (null expr) = case go (tail expr) [] Nothing of
+                             not (null expr) = case parseE (tail expr) [] Nothing of
                                                  Nothing -> Left "Error: malformed expression"
                                                  Just v -> Right $ Assign var v
-        helper1 (expr, rest) | null rest = case go expr [] Nothing of                    -- expression without assignment
+        helper (expr, rest) | null rest = case parseE expr [] Nothing of                    -- expression without assignment
                                            Nothing -> Left "Error: malformed expression"
                                            Just v -> Right $ Eval v
-        helper1 _ = Left "Error: malformed expression"
+        helper _ = Left "Error: malformed expression"
 
-        -- parsing of expression
-        -- string to parse -> list of prev exprs -> previous operation (constructor) -> resulting expression
-        go :: String -> [Maybe Expr] -> Maybe (Expr -> Expr -> Expr) -> Maybe Expr
-        go "" [m] Nothing = m
-        go "" [n, m] (Just op) = op <$> m <*> n
-        go "" _ _ = Nothing
-        go ('+':xs) (n:m:nums) (Just op) = go xs ((op <$> m <*> n) : nums) (Just Add)
-        go ('+':xs) [m] Nothing = let (rest, y) = takeNext xs
-                                  in go rest [y, m] (Just Add)
-        go ('-':xs) (n:m:nums) (Just op) = go xs ((op <$> m <*> n) : nums) (Just Sub)
-        go ('-':xs) [m] Nothing = let (rest, y) = takeNext xs
-                                  in go rest [y, m] (Just Sub)
-        go ('*':xs) (m:nums) op = let (rest, y) = takeNext xs
-                                  in go rest ((Mul <$> m <*> y) : nums) op
-        go ('/':xs) (m:nums) op = let (rest, y) = takeNext xs
-                                  in go rest ((Div <$> m <*> y) : nums) op
-        go s nums op = let (rest, n) = takeNext s
-                       in go rest (n : nums) op
+-- helper for parse - parsing of expression
+-- string to parse -> list of prev exprs -> previous operation (constructor) -> resulting expression
+parseE :: String -> [Maybe Expr] -> Maybe (Expr -> Expr -> Expr) -> Maybe Expr
+parseE "" [m] Nothing = m
+parseE "" [n, m] (Just op) = op <$> m <*> n
+parseE "" _ _ = Nothing
+parseE ('+':xs) (n:m:nums) (Just op) = parseE xs ((op <$> m <*> n) : nums) (Just Add)
+parseE ('+':xs) [m] Nothing = let (rest, y) = takeNext xs
+                              in parseE rest [y, m] (Just Add)
+parseE ('-':xs) (n:m:nums) (Just op) = parseE xs ((op <$> m <*> n) : nums) (Just Sub)
+parseE ('-':xs) [m] Nothing = let (rest, y) = takeNext xs
+                              in parseE rest [y, m] (Just Sub)
+parseE ('*':xs) (m:nums) op = let (rest, y) = takeNext xs
+                              in parseE rest ((Mul <$> m <*> y) : nums) op
+parseE ('/':xs) (m:nums) op = let (rest, y) = takeNext xs
+                              in parseE rest ((Div <$> m <*> y) : nums) op
+parseE s nums op = let (rest, n) = takeNext s
+                   in parseE rest (n : nums) op
 
-        -- take next number or variable
-        takeNext :: String -> (String, Maybe Expr)
-        takeNext ('-':s) = fmap (fmap (I . read . ('-':))) $ number s
-        takeNext s = case number s of
-          (_, Nothing) -> fmap (fmap Var) . var $ s
-          v -> fmap (fmap (I . read)) v
-        number (x:_) | x `notElem` "0123456789" = ("", Nothing)
-        number s = fmap Just . swap . break (`notElem` "0123456789") $ s
-        var (x:_) | x `notElem` ['a'..'z'] = ("", Nothing)
-        var s = fmap Just . swap . break (`notElem` ['a'..'z']) $ s
+-- take next number or variable
+takeNext :: String -> (String, Maybe Expr)
+takeNext ('-':s) = fmap (fmap (I . read . ('-':))) $ number s
+takeNext s = case number s of
+  (_, Nothing) -> fmap (fmap Var) . variable $ s
+  v -> fmap (fmap (I . read)) v
+
+number (x:_) | x `notElem` "0123456789" = ("", Nothing)
+number s = fmap Just . swap . break (`notElem` "0123456789") $ s
+
+variable (x:_) | x `notElem` ['a'..'z'] = ("", Nothing)
+variable s = fmap Just . swap . break (`notElem` ['a'..'z']) $ s
